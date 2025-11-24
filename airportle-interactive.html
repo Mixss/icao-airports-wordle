@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ICAO Wordle</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 1rem;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background-color: #121213;
+            color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+            text-align: center;
+        }
+
+        #subtitle {
+            font-size: 0.9rem;
+            color: #aaaaaa;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        #game {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            width: 100%;
+            max-width: 420px;
+            align-items: center;
+        }
+
+        #grid {
+            display: grid;
+            grid-template-rows: repeat(6, 1fr);
+            gap: 0.35rem;
+            max-width: 180px;
+            width: 100%;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.35rem;
+        }
+
+        .tile {
+            border: 2px solid #3a3a3c;
+            border-radius: 4px;
+            width: 100%;
+            padding-top: 100%; /* kwadrat */
+            position: relative;
+            text-transform: uppercase;
+            font-weight: bold;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+
+        .tile span {
+            position: absolute;
+        }
+
+        .tile.correct {
+            background-color: #538d4e;
+            border-color: #538d4e;
+            color: #f5f5f5;
+        }
+
+        .tile.present {
+            background-color: #b59f3b;
+            border-color: #b59f3b;
+            color: #f5f5f5;
+        }
+
+        .tile.absent {
+            background-color: #3a3a3c;
+            border-color: #3a3a3c;
+            color: #f5f5f5;
+        }
+
+        /* ---------- Klawiatura ---------- */
+
+        #keyboard {
+            margin-top: 0.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            user-select: none;
+            width: 100%;
+        }
+
+        .keyboard-row {
+            display: flex;
+            justify-content: center;
+            gap: 0.25rem;
+        }
+
+        .key {
+            min-width: 30px;
+            padding: 0.5rem 0.35rem;
+            border-radius: 4px;
+            border: none;
+            background-color: #818384;
+            color: #f5f5f5;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .key.correct {
+            background-color: #538d4e;
+        }
+
+        .key.present {
+            background-color: #b59f3b;
+        }
+
+        .key.absent {
+            background-color: #3a3a3c;
+        }
+
+        .key:active {
+            transform: scale(0.96);
+        }
+
+        @media (min-width: 480px) {
+            .key {
+                min-width: 36px;
+                padding-inline: 0.55rem;
+            }
+        }
+
+        /* ---------- Kontrolki ---------- */
+
+        #controls {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            width: 100%;
+        }
+
+        #inputRow {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        #guessInput {
+            flex: 1;
+            padding: 0.5rem 0.75rem;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            border-radius: 4px;
+            border: 1px solid #3a3a3c;
+            background-color: #1a1a1b;
+            color: #f5f5f5;
+            box-sizing: border-box;
+        }
+
+        #guessButton,
+        #newGameButton {
+            padding: 0.5rem 0.75rem;
+            font-size: 1rem;
+            border-radius: 4px;
+            border: none;
+            background-color: #538d4e;
+            color: #f5f5f5;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        #newGameButton {
+            background-color: #3b82f6;
+            width: 100%;
+        }
+
+        #guessButton:disabled,
+        #newGameButton:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+        #modeSwitch {
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        #message {
+            min-height: 1.2rem;
+            font-size: 0.95rem;
+            text-align: center;
+        }
+
+        #codesStatus {
+            font-size: 0.8rem;
+            color: #bbbbbb;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+<h1>ICAO Wordle</h1>
+<div id="subtitle">Guess ICAO airport code (in 7 tries)</div>
+
+<div id="game">
+    <div id="grid"></div>
+
+    <!-- Klawiatura -->
+    <div id="keyboard"></div>
+
+    <div id="controls">
+        <div id="inputRow">
+            <input
+                    id="guessInput"
+                    type="text"
+                    maxlength="4"
+                    autocomplete="off"
+                    autocapitalize="characters"
+                    placeholder="Enter code (e.g. EPWA)"
+                    readonly
+            />
+            <button id="guessButton">OK</button>
+        </div>
+
+        <div id="modeSwitch">
+            <input type="checkbox" id="largeOnlyToggle" />
+            <label for="largeOnlyToggle">Only the biggest airports</label>
+        </div>
+
+        <button id="newGameButton">New game</button>
+        <div id="message"></div>
+        <div id="codesStatus"></div>
+    </div>
+</div>
+
+<script>
+    const MAX_ATTEMPTS = 7;
+    const WORD_LENGTH = 4;
+
+    const CODES_URL =
+        "https://raw.githubusercontent.com/datasets/airport-codes/master/data/airport-codes.csv";
+
+    // Layout klawiatury
+    const keyboardLayout = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+
+    // Dwie listy: wszystkie komercyjne oraz tylko large
+    let allCommercialCodes = [];
+    let largeAirportCodes = [];
+
+    let targetCode = "";
+    let currentAttempt = 0;
+    let gameOver = false;
+
+    // status literek na klawiaturze: { A: "correct"/"present"/"absent", ... }
+    let letterStatuses = {};
+
+    const gridEl = document.getElementById("grid");
+    const keyboardEl = document.getElementById("keyboard");
+    const guessInput = document.getElementById("guessInput");
+    const guessButton = document.getElementById("guessButton");
+    const newGameButton = document.getElementById("newGameButton");
+    const messageEl = document.getElementById("message");
+    const codesStatusEl = document.getElementById("codesStatus");
+    const largeOnlyToggle = document.getElementById("largeOnlyToggle");
+
+    // ---------- UI helpers ----------
+
+    function createEmptyGrid() {
+        gridEl.innerHTML = "";
+        for (let row = 0; row < MAX_ATTEMPTS; row++) {
+            const rowEl = document.createElement("div");
+            rowEl.className = "row";
+            for (let col = 0; col < WORD_LENGTH; col++) {
+                const tile = document.createElement("div");
+                tile.className = "tile";
+                const span = document.createElement("span");
+                tile.appendChild(span);
+                rowEl.appendChild(tile);
+            }
+            gridEl.appendChild(rowEl);
+        }
+    }
+
+    function setMessage(text, isError = false) {
+        messageEl.textContent = text;
+        messageEl.style.color = isError ? "#f97373" : "#f5f5f5";
+    }
+
+    function setCodesStatus(text) {
+        codesStatusEl.textContent = text;
+    }
+
+    // Parser jednej linii CSV (ogarnia cudzysłowy + przecinki)
+    function parseCsvLine(line) {
+        const result = [];
+        let current = "";
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const c = line[i];
+
+            if (c === '"') {
+                inQuotes = !inQuotes;
+            } else if (c === "," && !inQuotes) {
+                result.push(current);
+                current = "";
+            } else {
+                current += c;
+            }
+        }
+        result.push(current);
+        return result;
+    }
+
+    // ---------- Klawiatura ekranowa ----------
+
+    function createKey(label, value) {
+        const key = document.createElement("button");
+        key.className = "key";
+        key.textContent = label;
+        key.dataset.key = value;
+        key.addEventListener("click", onKeyboardClick);
+        return key;
+    }
+
+    function createKeyboard() {
+        keyboardEl.innerHTML = "";
+
+        keyboardLayout.forEach((row, rowIndex) => {
+            const rowEl = document.createElement("div");
+            rowEl.className = "keyboard-row";
+
+            // Trzecia linia – dodajemy ENTER na początku
+            if (rowIndex === 2) {
+                rowEl.appendChild(createKey("ENTER", "enter"));
+            }
+
+            for (const ch of row) {
+                rowEl.appendChild(createKey(ch, ch));
+            }
+
+            // Trzecia linia – dodajemy backspace na końcu
+            if (rowIndex === 2) {
+                rowEl.appendChild(createKey("⌫", "backspace"));
+            }
+
+            keyboardEl.appendChild(rowEl);
+        });
+    }
+
+    function onKeyboardClick(e) {
+        const value = e.currentTarget.dataset.key;
+        if (!value || gameOver) return;
+
+        if (value === "enter") {
+            if (guessInput.value.trim().length === WORD_LENGTH) {
+                handleGuess();
+            }
+            return;
+        }
+
+        if (value === "backspace") {
+            guessInput.value = guessInput.value.slice(0, -1);
+            guessInput.focus();
+            return;
+        }
+
+        if (value.length === 1 && /^[A-Z]$/.test(value)) {
+            if (guessInput.value.length < WORD_LENGTH) {
+                guessInput.value += value;
+                guessInput.focus();
+            }
+            return;
+        }
+    }
+
+    function renderKeyboard() {
+        const keys = keyboardEl.querySelectorAll(".key");
+        keys.forEach((key) => {
+            const value = key.dataset.key;
+            if (!value || value.length !== 1) return; // pomijamy ENTER/backspace
+
+            key.classList.remove("correct", "present", "absent");
+
+            const status = letterStatuses[value];
+            if (status) {
+                key.classList.add(status);
+            }
+        });
+    }
+
+    function updateLetterStatuses(guess, statuses) {
+        for (let i = 0; i < WORD_LENGTH; i++) {
+            const letter = guess[i];
+            const status = statuses[i];
+            const current = letterStatuses[letter];
+
+            if (status === "correct") {
+                letterStatuses[letter] = "correct";
+            } else if (status === "present") {
+                if (current !== "correct") {
+                    letterStatuses[letter] = "present";
+                }
+            } else if (status === "absent") {
+                if (!current) {
+                    letterStatuses[letter] = "absent";
+                }
+            }
+        }
+    }
+
+    // ---------- Ładowanie kodów ----------
+
+    async function loadCodes() {
+        try {
+            const res = await fetch(CODES_URL);
+            if (!res.ok) {
+                throw new Error("HTTP " + res.status);
+            }
+            const txt = await res.text();
+            const lines = txt.split(/\r?\n/).filter((l) => l.trim().length > 0);
+
+            if (lines.length < 2) {
+                throw new Error("CSV file is empty or too short");
+            }
+
+            const header = parseCsvLine(lines[0]);
+            const identIdx = header.indexOf("ident");
+            const typeIdx = header.indexOf("type");
+            const iataIdx = header.indexOf("iata_code");
+
+            if (identIdx === -1 || typeIdx === -1 || iataIdx === -1) {
+                throw new Error("CSV format is invalid");
+            }
+
+            const allowedTypes = new Set(["large_airport", "medium_airport"]);
+
+            allCommercialCodes = [];
+            largeAirportCodes = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const row = parseCsvLine(lines[i]);
+                if (row.length <= Math.max(identIdx, typeIdx, iataIdx)) continue;
+
+                const ident = (row[identIdx] || "")
+                    .replace(/"/g, "")
+                    .trim()
+                    .toUpperCase();
+                const type = (row[typeIdx] || "").replace(/"/g, "").trim();
+                const iata = (row[iataIdx] || "")
+                    .replace(/"/g, "")
+                    .trim()
+                    .toUpperCase();
+
+                // 4-literowe kody ICAO
+                if (!/^[A-Z]{4}$/.test(ident)) continue;
+
+                // Tylko komercyjne: duże/średnie + mają IATA
+                if (!allowedTypes.has(type)) continue;
+                if (!iata) continue;
+
+                allCommercialCodes.push(ident);
+                if (type === "large_airport") {
+                    largeAirportCodes.push(ident);
+                }
+            }
+
+            if (allCommercialCodes.length === 0) {
+                throw new Error("No commercial airports found");
+            }
+
+            setCodesStatus(
+                `Loaded commercial airports: ${allCommercialCodes.length} (large: ${largeAirportCodes.length}).`
+            );
+        } catch (e) {
+            console.error("Error loading codes:", e);
+            setCodesStatus(
+                "Failed to fetch data from github. Loading small built-in list of polish airports"
+            );
+
+            // Fallback – traktujemy wszystkie jako "large"
+            allCommercialCodes = ["EPWA", "EPKK", "EPGD", "EPKT", "EPMO", "EPPO"];
+            largeAirportCodes = allCommercialCodes.slice();
+        }
+    }
+
+    function getActiveCodes() {
+        return largeOnlyToggle.checked ? largeAirportCodes : allCommercialCodes;
+    }
+
+    function pickRandomTarget() {
+        const list = getActiveCodes();
+        const idx = Math.floor(Math.random() * list.length);
+        targetCode = list[idx];
+        console.log("Code to guess (debug):", targetCode);
+    }
+
+    function resetGame() {
+        gameOver = false;
+        currentAttempt = 0;
+        letterStatuses = {};
+        createEmptyGrid();
+        renderKeyboard();
+
+        const active = getActiveCodes();
+        if (!active || active.length === 0) {
+            setMessage(
+                "Brak dostępnych kodów w wybranym trybie. Spróbuj zmienić przełącznik.",
+                true
+            );
+            guessInput.disabled = true;
+            guessButton.disabled = true;
+            return;
+        }
+
+        pickRandomTarget();
+
+        setMessage(
+            largeOnlyToggle.checked
+                ? "Mode: only the biggest airports (large_airport)."
+                : "Mode: all commercial airports (large + medium)."
+        );
+
+        guessInput.value = "";
+        guessInput.disabled = false;
+        guessButton.disabled = false;
+        guessInput.focus();
+    }
+
+    // ---------- Logika gry ----------
+
+    function validateGuess(rawGuess) {
+        const guess = rawGuess.trim().toUpperCase();
+        if (guess.length !== WORD_LENGTH) {
+            setMessage("Code must be 4 letters.", true);
+            return null;
+        }
+        if (!/^[A-Z]+$/.test(guess)) {
+            setMessage("Only A-Z letters allowed.", true);
+            return null;
+        }
+
+        const activeCodes = getActiveCodes();
+        if (!activeCodes.includes(guess)) {
+            setMessage("Airport code not found", true);
+            return null;
+        }
+
+        return guess;
+    }
+
+    function checkGuess(guess, target) {
+        const result = new Array(WORD_LENGTH).fill("absent");
+        const targetArr = target.split("");
+        const guessArr = guess.split("");
+
+        const remainingLetterCounts = {};
+
+        for (let i = 0; i < WORD_LENGTH; i++) {
+            if (guessArr[i] === targetArr[i]) {
+                result[i] = "correct";
+            } else {
+                const letter = targetArr[i];
+                remainingLetterCounts[letter] =
+                    (remainingLetterCounts[letter] || 0) + 1;
+            }
+        }
+
+        for (let i = 0; i < WORD_LENGTH; i++) {
+            if (result[i] === "correct") continue;
+            const letter = guessArr[i];
+            if (remainingLetterCounts[letter] > 0) {
+                result[i] = "present";
+                remainingLetterCounts[letter]--;
+            }
+        }
+
+        return result;
+    }
+
+    function renderGuess(guess, statuses) {
+        const rowEl = gridEl.children[currentAttempt];
+        const tiles = rowEl.children;
+        for (let i = 0; i < WORD_LENGTH; i++) {
+            const tile = tiles[i];
+            const span = tile.querySelector("span");
+            span.textContent = guess[i];
+            tile.classList.add(statuses[i]);
+        }
+    }
+
+    function handleGuess() {
+        if (gameOver) return;
+
+        const rawGuess = guessInput.value;
+        const guess = validateGuess(rawGuess);
+        if (!guess) return;
+
+        const statuses = checkGuess(guess, targetCode);
+        renderGuess(guess, statuses);
+
+        // update klawiatury
+        updateLetterStatuses(guess, statuses);
+        renderKeyboard();
+
+        if (guess === targetCode) {
+            setMessage(`Brawo! Poprawny kod to ${targetCode}.`);
+            gameOver = true;
+            guessInput.disabled = true;
+            guessButton.disabled = true;
+            return;
+        }
+
+        currentAttempt++;
+
+        if (currentAttempt >= MAX_ATTEMPTS) {
+            setMessage(`Koniec gry! Szukany kod to ${targetCode}.`);
+            gameOver = true;
+            guessInput.disabled = true;
+            guessButton.disabled = true;
+        } else {
+            setMessage(
+                `Próba ${currentAttempt + 1} z ${MAX_ATTEMPTS}. ` +
+                (largeOnlyToggle.checked
+                    ? "Tryb: duże lotniska."
+                    : "Tryb: wszystkie komercyjne.")
+            );
+        }
+
+        guessInput.value = "";
+        guessInput.focus();
+    }
+
+    // ---------- Eventy & init ----------
+
+    guessButton.addEventListener("click", handleGuess);
+    newGameButton.addEventListener("click", resetGame);
+
+    guessInput.addEventListener("keyup", (e) => {
+        if (e.key === "Enter") {
+            handleGuess();
+        }
+    });
+
+    largeOnlyToggle.addEventListener("change", () => {
+        resetGame();
+    });
+
+    (async function init() {
+        createEmptyGrid();
+        createKeyboard();
+        setCodesStatus("Pobieranie komercyjnych lotnisk z GitHuba...");
+        await loadCodes();
+        resetGame();
+    })();
+</script>
+</body>
+</html>
